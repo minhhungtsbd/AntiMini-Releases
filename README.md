@@ -5,7 +5,8 @@
 <h1 align="center">AntiMini Browser Releases</h1>
 
 <p align="center">
-  <strong>Trình duyệt chống phát hiện (Antidetect Browser) chuyên nghiệp dành cho Multi-Accounting, Tự động hóa & Bảo mật vân tay.</strong>
+  <strong>Antimini ( Antidect Browser by Cloudmini )</strong><br>
+  Trình duyệt chống phát hiện (Antidetect Browser) chuyên nghiệp dành cho Multi-Accounting, Tự động hóa & Bảo mật vân tay.
 </p>
 
 <p align="center">
