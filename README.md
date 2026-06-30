@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="AntiMini Browser Logo" width="180">
+  <img src="logo-releases.png" alt="AntiMini Browser Logo" width="180">
 </p>
 
 <h1 align="center">AntiMini Browser Releases</h1>
