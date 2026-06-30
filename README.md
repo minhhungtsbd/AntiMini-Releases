@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/minhhungtsbd/AntiMini-Releases/releases/latest">
-    <img src="https://img.shields.io/github/v/release/minhhungtsbd/AntiMini-Releases?color=blue&label=Bản%20mới%20nhất" alt="Latest Release">
+    <img src="https://img.shields.io/badge/Bản%20mới%20nhất-Tải%20về-blue" alt="Latest Release">
   </a>
   <img src="https://img.shields.io/badge/Nền%20tảng-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen" alt="Platforms">
   <img src="https://img.shields.io/badge/Giấy%20phép-AGPL--3.0-orange" alt="License">
