@@ -234,7 +234,7 @@ fi
 echo -e "\nTo run the Sync Server in the background (Recommended for Production):"
 echo -e "  npm install -g pm2"
 echo -e "  cd $syncPath"
-echo -e "  pm2 start dist/main.js --name \"antimini-sync\""
+echo -e "  pm2 start dist/src/main.js --name \"antimini-sync\""
 echo -e "  pm2 startup"
 echo -e "  pm2 save"
 echo -e "\nOr run it directly in foreground:"
