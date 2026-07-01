@@ -24,6 +24,34 @@ if (!(Test-Path $syncPath)) {
     New-Item -ItemType Directory -Path $syncPath -Force | Out-Null
 }
 
+# Ensure package.json is in the target directory, or copy/download it if missing
+$packageJsonPath = Join-Path $syncPath "package.json"
+if (!(Test-Path $packageJsonPath)) {
+    if (Test-Path ".\antimini-sync\package.json") {
+        Write-Host "Found 'antimini-sync' source folder in current directory. Copying files to '$syncPath'..." -ForegroundColor Yellow
+        Copy-Item -Path ".\antimini-sync\*" -Destination $syncPath -Recurse -Force
+    } elseif ((Test-Path ".\package.json") -and (Get-Content ".\package.json" -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue).name -eq "antimini-sync") {
+        Write-Host "Current directory is 'antimini-sync'. Copying files to '$syncPath'..." -ForegroundColor Yellow
+        Copy-Item -Path ".\*" -Destination $syncPath -Recurse -Force
+    } else {
+        # Automatically download from the public releases repository!
+        Write-Host "Downloading 'antimini-sync' source code from the official releases repository..." -ForegroundColor Yellow
+        $tempZip = Join-Path $env:TEMP "antimini-releases.zip"
+        $zipUrl = "https://github.com/minhhungtsbd/AntiMini-Releases/archive/refs/heads/main.zip"
+        Invoke-WebRequest -Uri $zipUrl -OutFile $tempZip -UseBasicParsing
+        $extractDir = Join-Path $env:TEMP "antimini-releases-extracted"
+        if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+        Expand-Archive -Path $tempZip -DestinationPath $extractDir -Force
+        
+        $sourcePath = Join-Path $extractDir "AntiMini-Releases-main\antimini-sync"
+        Copy-Item -Path "$sourcePath\*" -Destination $syncPath -Recurse -Force
+        
+        # Cleanup
+        Remove-Item $tempZip -Force
+        Remove-Item $extractDir -Recurse -Force
+    }
+}
+
 # 2. Ask for Sync Token / License Key
 $defaultToken = [Guid]::NewGuid().ToString()
 $syncToken = Read-Host "Enter a custom secure Sync Token (Press Enter to auto-generate: $defaultToken)"
@@ -120,6 +148,24 @@ Write-Host "`nSuccessfully created '.env' file at: $envPath" -ForegroundColor Gr
 Write-Host "`nInstalling packages and building the Sync Server..." -ForegroundColor Yellow
 cd $syncPath
 
+# Install Node.js & npm if missing
+if (!(Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Host "Node.js not found. Downloading and installing Node.js (LTS)..." -ForegroundColor Yellow
+    $msiPath = Join-Path $env:TEMP "node-install.msi"
+    $nodeUrl = "https://nodejs.org/dist/v20.11.1/node-v20.11.1-x64.msi"
+    Invoke-WebRequest -Uri $nodeUrl -OutFile $msiPath -UseBasicParsing
+    Write-Host "Running silent installation..." -ForegroundColor Yellow
+    $installProcess = Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn /norestart" -Wait -PassThru
+    # Refresh Path environment variable in the current process
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
+    
+    if (!(Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Error "Failed to install Node.js automatically. Please install Node.js manually (https://nodejs.org) and run this script again."
+        Exit
+    }
+}
+
 # Install pnpm if missing
 if (!(Get-Command pnpm -ErrorAction SilentlyContinue)) {
     Write-Host "Installing pnpm globally..." -ForegroundColor Yellow
@@ -137,8 +183,13 @@ Write-Host "Sync Server Port: $port" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 
 if ($setupMinIO -eq "Y" -or $setupMinIO -eq "y") {
-    Write-Host "IMPORTANT: Please run '$startScriptPath' first to start MinIO storage!" -ForegroundColor Yellow
+    Write-Host "IMPORTANT: Start MinIO storage in the background:" -ForegroundColor Yellow
+    Write-Host "  Start-Process -FilePath `"$startScriptPath`" -WindowStyle Hidden" -ForegroundColor Yellow
 }
-Write-Host "To run the Sync Server, execute:" -ForegroundColor Cyan
+Write-Host "`nTo run the Sync Server in the background (Recommended for Production):" -ForegroundColor Cyan
+Write-Host "  npm install -g pm2" -ForegroundColor Cyan
+Write-Host "  cd $syncPath" -ForegroundColor Cyan
+Write-Host "  pm2 start dist/main.js --name `"antimini-sync`"" -ForegroundColor Cyan
+Write-Host "`nOr run it directly in foreground:" -ForegroundColor Cyan
 Write-Host "  cd $syncPath" -ForegroundColor Cyan
 Write-Host "  pnpm run start:prod" -ForegroundColor Cyan
