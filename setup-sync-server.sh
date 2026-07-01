@@ -119,6 +119,39 @@ echo -e "\n${GREEN}Successfully created '.env' file at: $syncPath/.env${NC}"
 echo -e "\n${YELLOW}Installing packages and building the Sync Server...${NC}"
 cd "$syncPath"
 
+# Install Node.js & npm if missing
+if ! command -v node &> /dev/null; then
+  echo -e "${YELLOW}Node.js not found. Installing Node.js & npm...${NC}"
+  if command -v apt-get &> /dev/null; then
+    # Debian/Ubuntu
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+  elif command -v dnf &> /dev/null; then
+    # Fedora/CentOS 8+
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+    dnf install -y nodejs
+  elif command -v yum &> /dev/null; then
+    # CentOS 7
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+    yum install -y nodejs
+  else
+    echo -e "${RED}Unsupported package manager. Please install Node.js manually and run this script again.${NC}"
+    exit 1
+  fi
+fi
+
+# Ensure npm is installed
+if ! command -v npm &> /dev/null; then
+  echo -e "${YELLOW}npm not found. Installing npm...${NC}"
+  if command -v apt-get &> /dev/null; then
+    apt-get install -y npm
+  elif command -v dnf &> /dev/null; then
+    dnf install -y npm
+  elif command -v yum &> /dev/null; then
+    yum install -y npm
+  fi
+fi
+
 # Install pnpm if missing
 if ! command -v pnpm &> /dev/null; then
   echo -e "${YELLOW}Installing pnpm globally...${NC}"
@@ -141,4 +174,3 @@ fi
 echo -e "To run the Sync Server, execute:"
 echo -e "  cd $syncPath"
 echo -e "  pnpm run start:prod"
-EOF
