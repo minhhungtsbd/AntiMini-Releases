@@ -228,8 +228,15 @@ echo -e "Sync Server Port: ${CYAN}$port${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 
 if [[ "$setupMinIO" =~ ^[Yy]$ ]]; then
-  echo -e "${YELLOW}IMPORTANT: Please run '$minioDir/start-minio.sh &' first to start MinIO storage!${NC}"
+  echo -e "${YELLOW}IMPORTANT: Start MinIO storage in the background:${NC}"
+  echo -e "  nohup $minioDir/start-minio.sh > $minioDir/minio.log 2>&1 &"
 fi
-echo -e "To run the Sync Server, execute:"
+echo -e "\nTo run the Sync Server in the background (Recommended for Production):"
+echo -e "  npm install -g pm2"
+echo -e "  cd $syncPath"
+echo -e "  pm2 start dist/main.js --name \"antimini-sync\""
+echo -e "  pm2 startup"
+echo -e "  pm2 save"
+echo -e "\nOr run it directly in foreground:"
 echo -e "  cd $syncPath"
 echo -e "  pnpm run start:prod"

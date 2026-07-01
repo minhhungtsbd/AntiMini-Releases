@@ -75,12 +75,39 @@ S3_FORCE_PATH_STYLE=true
 ```
 
 ### Bước 3: Khởi chạy Máy chủ Đồng bộ
-1. Biên dịch dự án:
+
+#### Cách A: Chạy ngầm bằng PM2 (Khuyên dùng cho môi trường thực tế)
+Để đảm bảo các dịch vụ hoạt động liên tục ngay cả khi bạn đóng cửa sổ Terminal SSH:
+
+1. **Khởi chạy MinIO cục bộ (nếu cài MinIO)**:
    ```bash
-   pnpm run build
+   nohup /opt/minio/start-minio.sh > /opt/minio/minio.log 2>&1 &
    ```
-2. Khởi chạy trong môi trường production:
+2. **Cài đặt PM2 toàn hệ thống**:
    ```bash
+   npm install -g pm2
+   ```
+3. **Khởi chạy Sync Server bằng PM2**:
+   ```bash
+   cd /opt/antimini-sync
+   pnpm run build
+   pm2 start dist/main.js --name "antimini-sync"
+   ```
+4. **Cấu hình tự khởi động khi reboot máy chủ**:
+   ```bash
+   pm2 startup
+   pm2 save
+   ```
+
+#### Cách B: Khởi chạy trực tiếp (Để kiểm tra nhanh)
+1. Khởi chạy MinIO:
+   ```bash
+   /opt/minio/start-minio.sh &
+   ```
+2. Khởi chạy Sync Server:
+   ```bash
+   cd /opt/antimini-sync
+   pnpm run build
    pnpm run start:prod
    ```
 Dịch vụ sẽ bắt đầu lắng nghe tại cổng đã cấu hình (ví dụ: `8987`).
