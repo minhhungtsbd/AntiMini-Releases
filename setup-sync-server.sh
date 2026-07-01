@@ -31,6 +31,21 @@ if [ ! -d "$syncPath" ]; then
   mkdir -p "$syncPath"
 fi
 
+# Ensure package.json is in the target directory, or copy it if available locally
+if [ ! -f "$syncPath/package.json" ]; then
+  if [ -d "./antimini-sync" ] && [ -f "./antimini-sync/package.json" ]; then
+    echo -e "${YELLOW}Found 'antimini-sync' source folder in current directory. Copying files to '$syncPath'...${NC}"
+    cp -a ./antimini-sync/. "$syncPath/"
+  elif [ -f "./package.json" ] && grep -q '"name": "antimini-sync"' "./package.json" 2>/dev/null; then
+    echo -e "${YELLOW}Current directory is 'antimini-sync'. Copying files to '$syncPath'...${NC}"
+    cp -a ./. "$syncPath/"
+  else
+    echo -e "${RED}Error: 'package.json' not found in '$syncPath'.${NC}"
+    echo -e "${YELLOW}Please upload or copy the 'antimini-sync' source code folder into '$syncPath' first, then re-run this script.${NC}"
+    exit 1
+  fi
+fi
+
 # 2. Ask for Sync Token / License Key
 defaultToken=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "antimini-secret-sync-token-2026")
 read -p "Enter a custom secure Sync Token (Press Enter to auto-generate: $defaultToken): " syncToken
