@@ -39,6 +39,7 @@ Tự động thay đổi và giả lập cấu hình phần cứng chân thực 
 ### 2. 🌐 Tích Hợp Sâu Proxy & VPN WireGuard
 * Hỗ trợ đầy đủ các giao thức Proxy phổ biến: **SOCKS5**, **HTTP/HTTPS** (cả IPv4 và IPv6).
 * Tích hợp trực tiếp công cụ kết nối **VPN WireGuard** cho phép định tuyến toàn bộ lưu lượng của từng Profile qua các đường truyền VPN riêng biệt siêu tốc.
+* Hỗ trợ tính năng **Proxy trung gian (Proxy Chaining)** cho phép định tuyến lưu lượng qua Gateway cố định trước khi đi qua Proxy của profile.
 * Hỗ trợ tự động kiểm tra chất lượng và tình trạng kết nối của Proxy/VPN trước khi khởi chạy trình duyệt.
 
 ### 3. ☁️ Đồng Bộ Hóa Đám Mây Tự Chủ (Self-Hosted Cloud Sync)
