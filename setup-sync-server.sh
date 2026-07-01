@@ -31,7 +31,7 @@ if [ ! -d "$syncPath" ]; then
   mkdir -p "$syncPath"
 fi
 
-# Ensure package.json is in the target directory, or copy it if available locally
+# Ensure package.json is in the target directory, or copy/download it if missing
 if [ ! -f "$syncPath/package.json" ]; then
   if [ -d "./antimini-sync" ] && [ -f "./antimini-sync/package.json" ]; then
     echo -e "${YELLOW}Found 'antimini-sync' source folder in current directory. Copying files to '$syncPath'...${NC}"
@@ -40,9 +40,53 @@ if [ ! -f "$syncPath/package.json" ]; then
     echo -e "${YELLOW}Current directory is 'antimini-sync'. Copying files to '$syncPath'...${NC}"
     cp -a ./. "$syncPath/"
   else
-    echo -e "${RED}Error: 'package.json' not found in '$syncPath'.${NC}"
-    echo -e "${YELLOW}Please upload or copy the 'antimini-sync' source code folder into '$syncPath' first, then re-run this script.${NC}"
-    exit 1
+    # Automatically download from the public releases repository!
+    echo -e "${YELLOW}Downloading 'antimini-sync' source code from the official releases repository...${NC}"
+    if command -v git &> /dev/null; then
+      tempDir=$(mktemp -d)
+      git clone --depth 1 https://github.com/minhhungtsbd/AntiMini-Releases.git "$tempDir" &>/dev/null
+      if [ -d "$tempDir/antimini-sync" ]; then
+        cp -a "$tempDir/antimini-sync/." "$syncPath/"
+        rm -rf "$tempDir"
+      else
+        echo -e "${RED}Error: Failed to locate 'antimini-sync' in the downloaded repository.${NC}"
+        rm -rf "$tempDir"
+        exit 1
+      fi
+    else
+      # If git is not installed, install git or try downloading zip archive via curl
+      echo -e "${YELLOW}git not found. Installing git...${NC}"
+      if command -v apt-get &> /dev/null; then
+        apt-get update -y &>/dev/null && apt-get install -y git &>/dev/null
+      elif command -v dnf &> /dev/null; then
+        dnf install -y git &>/dev/null
+      elif command -v yum &> /dev/null; then
+        yum install -y git &>/dev/null
+      fi
+      
+      # Try cloning again
+      if command -v git &> /dev/null; then
+        tempDir=$(mktemp -d)
+        git clone --depth 1 https://github.com/minhhungtsbd/AntiMini-Releases.git "$tempDir" &>/dev/null
+        cp -a "$tempDir/antimini-sync/." "$syncPath/"
+        rm -rf "$tempDir"
+      else
+        # Fallback to downloading zip archive via curl
+        echo -e "${YELLOW}Downloading zip archive of releases repository...${NC}"
+        if command -v unzip &> /dev/null; then
+          tempZip="/tmp/antimini-releases.zip"
+          curl -fsSL -o "$tempZip" https://github.com/minhhungtsbd/AntiMini-Releases/archive/refs/heads/main.zip
+          tempDir="/tmp/antimini-releases-extracted"
+          mkdir -p "$tempDir"
+          unzip -q "$tempZip" -d "$tempDir"
+          cp -a "$tempDir/AntiMini-Releases-main/antimini-sync/." "$syncPath/"
+          rm -rf "$tempZip" "$tempDir"
+        else
+          echo -e "${RED}Error: Neither git nor unzip is installed. Please install git or unzip manually, or upload the source code to '$syncPath'.${NC}"
+          exit 1
+        fi
+      fi
+    fi
   fi
 fi
 
