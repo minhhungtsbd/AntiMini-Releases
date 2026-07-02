@@ -4,7 +4,11 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  Req,
+  UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { Request } from "express";
 import { AppService } from "./app.service.js";
 import { SyncService } from "./sync/sync.service.js";
 
@@ -13,6 +17,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly syncService: SyncService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get()
@@ -109,9 +114,14 @@ export class AppController {
   }
 
   @Post("api/auth/sync-token")
-  getSyncToken(): any {
+  getSyncToken(@Req() req: Request): any {
+    const appSecret = this.configService.get<string>("APP_SECRET") || "antimini-app-secret-key-2026-secure";
+    const clientSecret = req.headers["x-app-secret"];
+    if (!clientSecret || clientSecret !== appSecret) {
+      throw new UnauthorizedException("Invalid application secret");
+    }
     return {
-      syncToken: "antimini-secret-sync-token-2026",
+      syncToken: this.configService.get<string>("SYNC_TOKEN") || "antimini-secret-sync-token-2026",
     };
   }
 
