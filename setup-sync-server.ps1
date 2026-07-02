@@ -189,7 +189,7 @@ if ($setupMinIO -eq "Y" -or $setupMinIO -eq "y") {
 Write-Host "`nTo run the Sync Server in the background (Recommended for Production):" -ForegroundColor Cyan
 Write-Host "  npm install -g pm2" -ForegroundColor Cyan
 Write-Host "  cd $syncPath" -ForegroundColor Cyan
-Write-Host "  pm2 start dist/src/main.js --name `"antimini-sync`"" -ForegroundColor Cyan
+Write-Host "  pm2 start dist/main.js --name `"antimini-sync`"" -ForegroundColor Cyan
 Write-Host "`nOr run it directly in foreground:" -ForegroundColor Cyan
 Write-Host "  cd $syncPath" -ForegroundColor Cyan
 Write-Host "  pnpm run start:prod" -ForegroundColor Cyan
