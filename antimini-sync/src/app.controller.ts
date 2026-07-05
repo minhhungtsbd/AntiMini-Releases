@@ -272,7 +272,10 @@ export class AppController {
       const maxExpiry = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days max
       const exp = Math.min(expirationEpoch, maxExpiry);
 
-      const privateKey = privateKeyEnv.replace(/\\n/g, "\n");
+      let privateKey = privateKeyEnv.replace(/\\n/g, "\n");
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.slice(1, -1);
+      }
       const sub = accountData.email.toLowerCase().replace(/[^a-zA-Z0-9.@_-]/g, "");
       const payload = {
         sub,

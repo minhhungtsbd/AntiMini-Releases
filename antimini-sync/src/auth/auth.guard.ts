@@ -26,7 +26,11 @@ export class AuthGuard implements CanActivate {
   constructor(private configService: ConfigService) {
     const publicKey = this.configService.get<string>("SYNC_JWT_PUBLIC_KEY");
     if (publicKey) {
-      this.jwtPublicKey = publicKey.replace(/\\n/g, "\n");
+      let key = publicKey.replace(/\\n/g, "\n");
+      if (key.startsWith('"') && key.endsWith('"')) {
+        key = key.slice(1, -1);
+      }
+      this.jwtPublicKey = key;
       this.logger.log("JWT public key configured — cloud auth enabled");
     }
   }
