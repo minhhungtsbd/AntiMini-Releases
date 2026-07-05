@@ -200,7 +200,7 @@ export class AppController {
 
   @Post("api/auth/sync-token")
   async getSyncToken(@Req() req: Request): Promise<any> {
-    const appSecret = this.configService.get<string>("APP_SECRET") || "antimini-app-secret-key-2026-secure";
+    const appSecret = this.configService.get<string>("APP_SECRET") || "antimini-app-secret-key-2026-6b2c9a1d3f5e8b0c";
     const clientSecret = req.headers["x-app-secret"];
     if (!clientSecret || clientSecret !== appSecret) {
       throw new UnauthorizedException("Invalid application secret");
