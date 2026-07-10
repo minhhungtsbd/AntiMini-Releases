@@ -110,6 +110,7 @@ if [ -z "$setupMinIO" ]; then
 fi
 
 s3Endpoint=""
+s3PublicEndpoint=""
 s3Region="us-east-1"
 s3AccessKey=""
 s3SecretKey=""
@@ -165,6 +166,7 @@ cat <<EOF > "$syncPath/.env"
 SYNC_TOKEN=$syncToken
 PORT=$port
 S3_ENDPOINT=$s3Endpoint
+S3_PUBLIC_ENDPOINT=$s3PublicEndpoint
 S3_REGION=$s3Region
 S3_ACCESS_KEY_ID=$s3AccessKey
 S3_SECRET_ACCESS_KEY=$s3SecretKey

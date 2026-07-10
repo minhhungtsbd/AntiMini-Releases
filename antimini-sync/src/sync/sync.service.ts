@@ -81,6 +81,7 @@ function sanitizeMetadata(
 export class SyncService implements OnModuleInit {
   private readonly logger = new Logger(SyncService.name);
   private s3Client: S3Client;
+  private presignClient: S3Client;
   private bucket: string;
   private changeSubject = new Subject<SubscribeEventDto>();
   private s3Ready = false;
@@ -90,6 +91,8 @@ export class SyncService implements OnModuleInit {
   constructor(private configService: ConfigService) {
     const endpoint =
       this.configService.get<string>("S3_ENDPOINT") || "http://localhost:8987";
+    const publicEndpoint =
+      this.configService.get<string>("S3_PUBLIC_ENDPOINT") || endpoint;
     const region = this.configService.get<string>("S3_REGION") || "us-east-1";
     const accessKeyId =
       this.configService.get<string>("S3_ACCESS_KEY_ID") || "minioadmin";
@@ -103,6 +106,15 @@ export class SyncService implements OnModuleInit {
 
     this.s3Client = new S3Client({
       endpoint,
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+      forcePathStyle,
+    });
+    this.presignClient = new S3Client({
+      endpoint: publicEndpoint,
       region,
       credentials: {
         accessKeyId,
@@ -325,7 +337,7 @@ export class SyncService implements OnModuleInit {
       Metadata: metadata,
     });
 
-    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    const url = await getSignedUrl(this.presignClient, command, { expiresIn });
 
     // Report profile usage after upload presign if key is under profiles/
     if (ctx.mode === "cloud" && dto.key.startsWith("profiles/")) {
@@ -361,7 +373,7 @@ export class SyncService implements OnModuleInit {
       Key: key,
     });
 
-    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    const url = await getSignedUrl(this.presignClient, command, { expiresIn });
 
     return {
       url,
@@ -482,7 +494,9 @@ export class SyncService implements OnModuleInit {
           ContentType: item.contentType || "application/octet-stream",
         });
 
-        const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+        const url = await getSignedUrl(this.presignClient, command, {
+          expiresIn,
+        });
 
         return {
           key: item.key,
@@ -534,7 +548,9 @@ export class SyncService implements OnModuleInit {
           Key: key,
         });
 
-        const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+        const url = await getSignedUrl(this.presignClient, command, {
+          expiresIn,
+        });
 
         return {
           key: rawKey,

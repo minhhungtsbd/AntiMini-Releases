@@ -67,6 +67,7 @@ PORT=8987
 
 # Cấu hình kết nối S3 Storage
 S3_ENDPOINT=http://localhost:9000      # Đổi thành URL S3 của bạn nếu dùng Cloudflare R2 / AWS S3
+S3_PUBLIC_ENDPOINT=                    # Nếu dùng MinIO qua domain/tunnel, đặt URL public tại đây, ví dụ: https://antimini-sync.cloudmini.net
 S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=minioadmin            # Access Key
 S3_SECRET_ACCESS_KEY=minioadmin        # Secret Key
@@ -132,6 +133,26 @@ curl -i http://127.0.0.1:8987/v1/profile-locks
 ```
 
 Kết quả `401 Unauthorized` hoặc `403` là bình thường nếu chưa gửi token, miễn là không còn lỗi `Connection refused`.
+
+---
+
+## 🌐 Dùng Domain / Cloudflare Tunnel Với MinIO Local
+
+Khi dùng MinIO local, không đặt `S3_ENDPOINT` thành domain public nếu server vẫn cần kết nối MinIO qua localhost. Hãy tách hai endpoint:
+
+```env
+S3_ENDPOINT=http://127.0.0.1:9000
+S3_PUBLIC_ENDPOINT=https://antimini-sync.cloudmini.net
+```
+
+`S3_ENDPOINT` là đường nội bộ để NestJS nói chuyện với MinIO. `S3_PUBLIC_ENDPOINT` là URL được ký và trả về cho AntiMini Browser, nên giá trị này phải truy cập được từ máy chạy ứng dụng.
+
+Nếu dùng chung một domain cho cả API và MinIO, reverse proxy/tunnel cần route:
+
+```text
+/v1/*              -> NestJS sync server
+/antimini-sync/*   -> MinIO
+```
 
 ---
 
