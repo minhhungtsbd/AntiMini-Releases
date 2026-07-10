@@ -337,7 +337,18 @@ export class SyncService implements OnModuleInit {
       Metadata: metadata,
     });
 
-    const url = await getSignedUrl(this.presignClient, command, { expiresIn });
+    // The Rust client sends metadata as x-amz-meta-* PUT headers. By default
+    // the AWS presigner hoists those values into query parameters, while
+    // MinIO rejects the duplicate, unsigned request headers. Keep metadata
+    // unhoisted so the signature explicitly covers the exact headers sent by
+    // the client.
+    const unhoistableHeaders = new Set(
+      Object.keys(metadata ?? {}).map((key) => `x-amz-meta-${key}`),
+    );
+    const url = await getSignedUrl(this.presignClient, command, {
+      expiresIn,
+      unhoistableHeaders,
+    });
 
     // Report profile usage after upload presign if key is under profiles/
     if (ctx.mode === "cloud" && dto.key.startsWith("profiles/")) {
