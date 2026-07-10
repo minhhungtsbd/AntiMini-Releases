@@ -105,7 +105,11 @@ rm -rf "$syncPath/dist"
 cd "$syncPath"
 
 echo -e "${CYAN}Installing dependencies...${NC}"
-pnpm install --frozen-lockfile || pnpm install
+if [ -f pnpm-lock.yaml ]; then
+  pnpm install --frozen-lockfile || pnpm install
+else
+  pnpm install
+fi
 
 echo -e "${CYAN}Building sync server...${NC}"
 pnpm run build
