@@ -101,7 +101,9 @@ export class AppController {
 
   @Get("api/auth/me")
   async getMe(@Req() req: Request): Promise<any> {
-    const privateKeyEnv = this.configService.get<string>("SYNC_JWT_PRIVATE_KEY");
+    const privateKeyEnv = this.configService.get<string>(
+      "SYNC_JWT_PRIVATE_KEY",
+    );
     if (!privateKeyEnv) {
       // Self-hosted/static mode: return the static mock user data
       return {
@@ -119,8 +121,10 @@ export class AppController {
     }
 
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Missing or invalid authorization header");
+    if (!authHeader?.startsWith("Bearer ")) {
+      throw new UnauthorizedException(
+        "Missing or invalid authorization header",
+      );
     }
     const apiKey = authHeader.substring(7);
 
@@ -129,16 +133,18 @@ export class AppController {
       const accountUrl = "https://client.cloudmini.net/api/v2/account";
       const accountRes = await fetch(accountUrl, {
         headers: {
-          "Accept": "application/json",
-          "Authorization": `Token ${apiKey}`,
+          Accept: "application/json",
+          Authorization: `Token ${apiKey}`,
         },
       });
 
       if (!accountRes.ok) {
-        throw new UnauthorizedException(`Cloudmini API returned status ${accountRes.status}`);
+        throw new UnauthorizedException(
+          `Cloudmini API returned status ${accountRes.status}`,
+        );
       }
 
-      const accountBody = await accountRes.json() as any;
+      const accountBody = (await accountRes.json()) as any;
       if (accountBody.error || !accountBody.data) {
         throw new UnauthorizedException(accountBody.msg || "Invalid API key");
       }
@@ -149,8 +155,8 @@ export class AppController {
       const antidetectUrl = "https://client.cloudmini.net/api/v2/antidetect";
       const antidetectRes = await fetch(antidetectUrl, {
         headers: {
-          "Accept": "application/json",
-          "Authorization": `Token ${apiKey}`,
+          Accept: "application/json",
+          Authorization: `Token ${apiKey}`,
         },
       });
 
@@ -159,7 +165,7 @@ export class AppController {
       let status = "active";
 
       if (antidetectRes.ok) {
-        const antidetectBody = await antidetectRes.json() as any;
+        const antidetectBody = (await antidetectRes.json()) as any;
         if (!antidetectBody.error && antidetectBody.data) {
           const antidetectData = antidetectBody.data;
           if (antidetectData.is_expired) {
@@ -194,29 +200,39 @@ export class AppController {
       if (e instanceof HttpException) {
         throw e;
       }
-      throw new UnauthorizedException(`Authentication failed: ${e instanceof Error ? e.message : String(e)}`);
+      throw new UnauthorizedException(
+        `Authentication failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
   @Post("api/auth/sync-token")
   async getSyncToken(@Req() req: Request): Promise<any> {
-    const appSecret = this.configService.get<string>("APP_SECRET") || "antimini-app-secret-key-2026-6b2c9a1d3f5e8b0c";
+    const appSecret =
+      this.configService.get<string>("APP_SECRET") ||
+      "antimini-app-secret-key-2026-6b2c9a1d3f5e8b0c";
     const clientSecret = req.headers["x-app-secret"];
     if (!clientSecret || clientSecret !== appSecret) {
       throw new UnauthorizedException("Invalid application secret");
     }
 
-    const privateKeyEnv = this.configService.get<string>("SYNC_JWT_PRIVATE_KEY");
+    const privateKeyEnv = this.configService.get<string>(
+      "SYNC_JWT_PRIVATE_KEY",
+    );
     if (!privateKeyEnv) {
       // Self-hosted/static mode: return the static SYNC_TOKEN
       return {
-        syncToken: this.configService.get<string>("SYNC_TOKEN") || "antimini-secret-sync-token-2026",
+        syncToken:
+          this.configService.get<string>("SYNC_TOKEN") ||
+          "antimini-secret-sync-token-2026",
       };
     }
 
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Missing or invalid authorization header");
+    if (!authHeader?.startsWith("Bearer ")) {
+      throw new UnauthorizedException(
+        "Missing or invalid authorization header",
+      );
     }
     const apiKey = authHeader.substring(7);
 
@@ -225,16 +241,18 @@ export class AppController {
       const accountUrl = "https://client.cloudmini.net/api/v2/account";
       const accountRes = await fetch(accountUrl, {
         headers: {
-          "Accept": "application/json",
-          "Authorization": `Token ${apiKey}`,
+          Accept: "application/json",
+          Authorization: `Token ${apiKey}`,
         },
       });
 
       if (!accountRes.ok) {
-        throw new UnauthorizedException(`Cloudmini API returned status ${accountRes.status}`);
+        throw new UnauthorizedException(
+          `Cloudmini API returned status ${accountRes.status}`,
+        );
       }
 
-      const accountBody = await accountRes.json() as any;
+      const accountBody = (await accountRes.json()) as any;
       if (accountBody.error || !accountBody.data) {
         throw new UnauthorizedException(accountBody.msg || "Invalid API key");
       }
@@ -245,8 +263,8 @@ export class AppController {
       const antidetectUrl = "https://client.cloudmini.net/api/v2/antidetect";
       const antidetectRes = await fetch(antidetectUrl, {
         headers: {
-          "Accept": "application/json",
-          "Authorization": `Token ${apiKey}`,
+          Accept: "application/json",
+          Authorization: `Token ${apiKey}`,
         },
       });
 
@@ -254,14 +272,18 @@ export class AppController {
         throw new ForbiddenException(`Failed to check Cloud Sync subscription`);
       }
 
-      const antidetectBody = await antidetectRes.json() as any;
+      const antidetectBody = (await antidetectRes.json()) as any;
       if (antidetectBody.error || !antidetectBody.data) {
-        throw new ForbiddenException("Account does not have a Cloud Sync subscription");
+        throw new ForbiddenException(
+          "Account does not have a Cloud Sync subscription",
+        );
       }
 
       const antidetectData = antidetectBody.data;
       if (antidetectData.is_expired) {
-        throw new ForbiddenException("Your Cloud Sync subscription has expired");
+        throw new ForbiddenException(
+          "Your Cloud Sync subscription has expired",
+        );
       }
 
       const profileLimit = antidetectData.amount || 5;
@@ -276,7 +298,9 @@ export class AppController {
       if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
         privateKey = privateKey.slice(1, -1);
       }
-      const sub = accountData.email.toLowerCase().replace(/[^a-zA-Z0-9.@_-]/g, "");
+      const sub = accountData.email
+        .toLowerCase()
+        .replace(/[^a-zA-Z0-9.@_-]/g, "");
       const payload = {
         sub,
         prefix: `users/${sub}/`,
@@ -290,7 +314,9 @@ export class AppController {
       if (e instanceof HttpException) {
         throw e;
       }
-      throw new UnauthorizedException(`Authentication failed: ${e instanceof Error ? e.message : String(e)}`);
+      throw new UnauthorizedException(
+        `Authentication failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
