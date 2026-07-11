@@ -73,6 +73,10 @@ S3_ACCESS_KEY_ID=minioadmin            # Access Key
 S3_SECRET_ACCESS_KEY=minioadmin        # Secret Key
 S3_BUCKET=antimini-sync                # Tên bucket lưu trữ
 S3_FORCE_PATH_STYLE=true
+
+# Redis giữ profile lock qua các lần restart NestJS/PM2.
+# Chỉ dùng localhost, không mở cổng Redis ra Internet.
+REDIS_URL=redis://127.0.0.1:6379
 ```
 
 ### Bước 3: Khởi chạy Máy chủ Đồng bộ
@@ -123,13 +127,14 @@ Nếu bạn đã cài `antimini-sync` bằng script tự động trước đó, 
 curl -fsSL https://raw.githubusercontent.com/minhhungtsbd/AntiMini-Releases/main/update-sync-server.sh | bash -s -- /opt/antimini-sync
 ```
 
-Script cập nhật sẽ giữ nguyên file `.env`, không đụng vào dữ liệu MinIO trong `/opt/minio`, xoá cache build TypeScript, build lại `dist/main.js`, restart process `antimini-sync` trong PM2 và kiểm tra endpoint `/v1/profile-locks`.
+Script cập nhật sẽ giữ nguyên file `.env`, không đụng vào dữ liệu MinIO trong `/opt/minio`, cài/cấu hình Redis nội bộ với AOF persistence, xoá cache build TypeScript, build lại `dist/main.js`, restart process `antimini-sync` trong PM2 và kiểm tra endpoint `/v1/profile-locks`.
 
 Sau khi chạy xong, có thể kiểm tra nhanh:
 
 ```bash
 pm2 status
-curl -i http://127.0.0.1:8987/v1/profile-locks
+redis-cli -h 127.0.0.1 ping
+curl -i http://127.0.0.1:8989/v1/profile-locks
 ```
 
 Kết quả `401 Unauthorized` hoặc `403` là bình thường nếu chưa gửi token, miễn là không còn lỗi `Connection refused`.
@@ -153,6 +158,19 @@ Nếu dùng chung một domain cho cả API và MinIO, reverse proxy/tunnel cầ
 /v1/*              -> NestJS sync server
 /antimini-sync/*   -> MinIO
 ```
+
+Script Linux mới có thể tạo Nginx reverse proxy khi bạn nhập
+`S3_PUBLIC_ENDPOINT`. Cloudflare Tunnel vẫn cần Public Hostname trỏ tới
+`http://localhost:8988`; bạn có thể nhập tunnel token trong lúc cài mới để
+script cài service `cloudflared`.
+
+---
+
+## 🔐 Redis cho Profile Lock
+
+Redis được cài cùng VPS và chỉ bind ở `127.0.0.1:6379`. Redis dùng AOF với
+`appendfsync everysec`, nhờ đó profile lock vẫn còn sau khi NestJS hoặc PM2
+restart. Không mở port `6379` trên firewall hay Cloudflare Tunnel.
 
 ---
 

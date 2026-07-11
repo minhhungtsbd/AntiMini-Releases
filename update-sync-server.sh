@@ -74,6 +74,49 @@ if ! command -v pm2 &> /dev/null; then
   npm install -g pm2
 fi
 
+ensure_redis() {
+  if ! command -v redis-server &> /dev/null; then
+    echo -e "${YELLOW}Redis not found. Installing Redis for durable profile locks...${NC}"
+    if command -v apt-get &> /dev/null; then
+      apt-get update -y
+      apt-get install -y redis-server
+    elif command -v dnf &> /dev/null; then
+      dnf install -y redis
+    elif command -v yum &> /dev/null; then
+      yum install -y redis
+    else
+      echo -e "${RED}Unsupported package manager. Please install Redis manually.${NC}"
+      exit 1
+    fi
+  fi
+
+  local redisConfig="/etc/redis/redis.conf"
+  if [ -f "$redisConfig" ]; then
+    set_redis_option() {
+      local name="$1"
+      local value="$2"
+      if grep -qE "^[[:space:]]*${name}[[:space:]]+" "$redisConfig"; then
+        sed -ri "s|^[[:space:]]*${name}[[:space:]]+.*|${name} ${value}|" "$redisConfig"
+      else
+        echo "${name} ${value}" >> "$redisConfig"
+      fi
+    }
+    set_redis_option bind "127.0.0.1"
+    set_redis_option protected-mode yes
+    set_redis_option appendonly yes
+    set_redis_option appendfsync everysec
+  fi
+
+  systemctl enable redis-server 2>/dev/null || systemctl enable redis 2>/dev/null || true
+  systemctl restart redis-server 2>/dev/null || systemctl restart redis 2>/dev/null || true
+  if ! redis-cli -h 127.0.0.1 ping | grep -qx "PONG"; then
+    echo -e "${RED}Redis did not respond on 127.0.0.1:6379.${NC}"
+    exit 1
+  fi
+}
+
+ensure_redis
+
 tempDir=$(mktemp -d)
 envBackup=$(mktemp)
 cleanup() {
@@ -91,6 +134,10 @@ if [ ! -f "$tempDir/antimini-sync/package.json" ]; then
 fi
 
 cp "$syncPath/.env" "$envBackup"
+
+if ! grep -q '^REDIS_URL=' "$envBackup"; then
+  echo 'REDIS_URL=redis://127.0.0.1:6379' >> "$envBackup"
+fi
 
 echo -e "${CYAN}Stopping current PM2 process if it exists...${NC}"
 pm2 stop antimini-sync &>/dev/null || true
@@ -142,6 +189,9 @@ else
   pm2 logs antimini-sync --lines 80 --nostream || true
   exit 1
 fi
+
+echo -e "${CYAN}Checking Redis persistence service...${NC}"
+redis-cli -h 127.0.0.1 ping | grep -qx "PONG"
 
 echo -e "${GREEN}==========================================================${NC}"
 echo -e "${GREEN}      AntiMini Sync Server updated successfully.          ${NC}"

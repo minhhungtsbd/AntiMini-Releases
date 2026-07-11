@@ -36,18 +36,18 @@ export class ProfileLockController {
   }
 
   @Get()
-  list(@Req() req: Request) {
+  async list(@Req() req: Request) {
     return this.locks.list(this.context(req));
   }
 
   @Post(":profileId")
   @HttpCode(200)
-  acquire(
+  async acquire(
     @Param("profileId") profileId: string,
     @Body() body: DeviceRequest,
     @Req() req: Request,
   ) {
-    const result = this.locks.acquire(
+    const result = await this.locks.acquire(
       this.context(req),
       profileId,
       this.deviceId(body),
@@ -57,12 +57,12 @@ export class ProfileLockController {
 
   @Post(":profileId/heartbeat")
   @HttpCode(200)
-  heartbeat(
+  async heartbeat(
     @Param("profileId") profileId: string,
     @Body() body: DeviceRequest,
     @Req() req: Request,
   ) {
-    const result = this.locks.heartbeat(
+    const result = await this.locks.heartbeat(
       this.context(req),
       profileId,
       this.deviceId(body),
@@ -72,11 +72,11 @@ export class ProfileLockController {
 
   @Delete(":profileId")
   @HttpCode(204)
-  release(
+  async release(
     @Param("profileId") profileId: string,
     @Body() body: DeviceRequest,
     @Req() req: Request,
   ) {
-    this.locks.release(this.context(req), profileId, this.deviceId(body));
+    await this.locks.release(this.context(req), profileId, this.deviceId(body));
   }
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Bash Automated Installer for AntiMini Sync Server & MinIO
+# Bash Automated Installer for AntiMini Sync Server, MinIO & Redis
 # Suitable for Ubuntu/Debian/CentOS Linux systems
 
 RED='\033[0;31m'
@@ -10,7 +10,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}==========================================================${NC}"
-echo -e "${GREEN}      AntiMini Sync Server & MinIO Auto Installer         ${NC}"
+echo -e "${GREEN}  AntiMini Sync Server, MinIO & Redis Auto Installer      ${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 
 # Check for root/sudo
@@ -18,6 +18,47 @@ if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}Please run this script with sudo or as root!${NC}"
   exit 1
 fi
+
+install_redis() {
+  echo -e "${CYAN}Installing Redis for durable profile locks...${NC}"
+  if command -v apt-get &> /dev/null; then
+    apt-get update -y
+    apt-get install -y redis-server curl ca-certificates git
+  elif command -v dnf &> /dev/null; then
+    dnf install -y redis curl ca-certificates git
+  elif command -v yum &> /dev/null; then
+    yum install -y redis curl ca-certificates git
+  else
+    echo -e "${RED}Unsupported package manager. Please install Redis manually.${NC}"
+    exit 1
+  fi
+
+  local redisConfig="/etc/redis/redis.conf"
+  if [ -f "$redisConfig" ]; then
+    set_redis_option() {
+      local name="$1"
+      local value="$2"
+      if grep -qE "^[[:space:]]*${name}[[:space:]]+" "$redisConfig"; then
+        sed -ri "s|^[[:space:]]*${name}[[:space:]]+.*|${name} ${value}|" "$redisConfig"
+      else
+        echo "${name} ${value}" >> "$redisConfig"
+      fi
+    }
+    set_redis_option bind "127.0.0.1"
+    set_redis_option protected-mode yes
+    set_redis_option appendonly yes
+    set_redis_option appendfsync everysec
+  fi
+
+  systemctl enable redis-server 2>/dev/null || systemctl enable redis 2>/dev/null || true
+  systemctl restart redis-server 2>/dev/null || systemctl restart redis 2>/dev/null || true
+  if ! redis-cli -h 127.0.0.1 ping | grep -qx "PONG"; then
+    echo -e "${RED}Redis did not respond on 127.0.0.1:6379.${NC}"
+    exit 1
+  fi
+}
+
+install_redis
 
 # 1. Ask for antimini-sync path
 read -p "Enter the absolute path to your 'antimini-sync' directory (e.g., /opt/antimini-sync): " syncPath
@@ -98,9 +139,9 @@ if [ -z "$syncToken" ]; then
 fi
 
 # 3. Ask for Port
-read -p "Enter the port for NestJS Sync Server (Press Enter to default: 8987): " port
+read -p "Enter the port for NestJS Sync Server (Press Enter to default: 8989): " port
 if [ -z "$port" ]; then
-  port="8987"
+  port="8989"
 fi
 
 # 4. Option to setup MinIO locally
@@ -150,6 +191,24 @@ echo "Starting MinIO Server on port 9000..."
 EOF
   chmod +x "$minioDir/start-minio.sh"
   echo -e "${GREEN}Created MinIO startup script at: $minioDir/start-minio.sh${NC}"
+
+  cat <<EOF > /etc/systemd/system/antimini-minio.service
+[Unit]
+Description=AntiMini local MinIO storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$minioDir/start-minio.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now antimini-minio
   
 else
   echo -e "\n${CYAN}--- Configuring Custom S3 Storage (AWS / Cloudflare R2) ---${NC}"
@@ -160,6 +219,8 @@ else
   read -p "Enter S3 Secret Access Key: " s3SecretKey
   read -p "Enter S3 Bucket Name: " s3Bucket
 fi
+
+read -p "Enter public Sync URL for Cloudflare Tunnel/Nginx (optional, e.g. https://antimini-sync.example.com): " s3PublicEndpoint
 
 # 5. Write .env file
 cat <<EOF > "$syncPath/.env"
@@ -172,6 +233,7 @@ S3_ACCESS_KEY_ID=$s3AccessKey
 S3_SECRET_ACCESS_KEY=$s3SecretKey
 S3_BUCKET=$s3Bucket
 S3_FORCE_PATH_STYLE=$s3ForcePathStyle
+REDIS_URL=redis://127.0.0.1:6379
 EOF
 
 echo -e "\n${GREEN}Successfully created '.env' file at: $syncPath/.env${NC}"
@@ -222,23 +284,75 @@ fi
 pnpm install
 pnpm run build
 
+if ! command -v pm2 &> /dev/null; then
+  echo -e "${YELLOW}Installing pm2 globally...${NC}"
+  npm install -g pm2
+fi
+pm2 delete antimini-sync &>/dev/null || true
+pm2 start "$syncPath/dist/main.js" --name antimini-sync
+pm2 save
+
+if [[ "$setupMinIO" =~ ^[Yy]$ ]] && [ -n "$s3PublicEndpoint" ]; then
+  publicDomain=$(echo "$s3PublicEndpoint" | sed -E 's#^https?://##; s#/.*$##; s#:[0-9]+$##')
+  read -p "Enter local Nginx proxy port for Cloudflare Tunnel (Press Enter to default: 8988): " proxyPort
+  if [ -z "$proxyPort" ]; then proxyPort="8988"; fi
+
+  if command -v apt-get &> /dev/null; then
+    apt-get install -y nginx
+  fi
+  cat <<EOF > /etc/nginx/sites-available/antimini-sync
+server {
+    listen $proxyPort;
+    server_name $publicDomain _;
+
+    client_max_body_size 0;
+    proxy_request_buffering off;
+    proxy_buffering off;
+
+    location /antimini-sync/ {
+        proxy_pass http://127.0.0.1:9000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:$port;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+  ln -sfn /etc/nginx/sites-available/antimini-sync /etc/nginx/sites-enabled/antimini-sync
+  nginx -t
+  systemctl enable --now nginx
+  systemctl reload nginx
+
+  read -p "Enter Cloudflare Tunnel token to install its service (optional, press Enter to skip): " cloudflaredToken
+  if [ -n "$cloudflaredToken" ]; then
+    if ! command -v cloudflared &> /dev/null; then
+      mkdir -p --mode=0755 /usr/share/keyrings
+      curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+      echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' > /etc/apt/sources.list.d/cloudflared.list
+      apt-get update -y
+      apt-get install -y cloudflared
+    fi
+    cloudflared service install "$cloudflaredToken"
+  fi
+fi
+
 echo -e "\n${GREEN}==========================================================${NC}"
 echo -e "${GREEN}                 INSTALLATION COMPLETED!                  ${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 echo -e "Sync Token (License Key): ${CYAN}$syncToken${NC}"
 echo -e "Sync Server Port: ${CYAN}$port${NC}"
+echo -e "Redis URL: ${CYAN}redis://127.0.0.1:6379${NC}"
 echo -e "${GREEN}==========================================================${NC}"
 
-if [[ "$setupMinIO" =~ ^[Yy]$ ]]; then
-  echo -e "${YELLOW}IMPORTANT: Start MinIO storage in the background:${NC}"
-  echo -e "  nohup $minioDir/start-minio.sh > $minioDir/minio.log 2>&1 &"
-fi
-echo -e "\nTo run the Sync Server in the background (Recommended for Production):"
-echo -e "  npm install -g pm2"
-echo -e "  cd $syncPath"
-echo -e "  pm2 start dist/main.js --name \"antimini-sync\""
-echo -e "  pm2 startup"
-echo -e "  pm2 save"
-echo -e "\nOr run it directly in foreground:"
-echo -e "  cd $syncPath"
-echo -e "  pnpm run start:prod"
+echo -e "Services are enabled: Redis, MinIO (if selected), and PM2 sync server."
+echo -e "For Cloudflare Tunnel, point its public hostname to http://localhost:8988."
