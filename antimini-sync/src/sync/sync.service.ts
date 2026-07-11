@@ -23,6 +23,7 @@ import { interval, merge, type Observable, of, Subject } from "rxjs";
 import { catchError, filter, map, startWith, switchMap } from "rxjs/operators";
 import type { UserContext } from "../auth/user-context.interface.js";
 import type {
+  CompleteUploadRequestDto,
   DeletePrefixRequestDto,
   DeletePrefixResponseDto,
   DeleteRequestDto,
@@ -369,6 +370,26 @@ export class SyncService implements OnModuleInit {
     };
   }
 
+  async completeUpload(
+    dto: CompleteUploadRequestDto,
+    ctx: UserContext,
+  ): Promise<void> {
+    const key = this.scopeKey(ctx, dto.key);
+    this.validateKeyAccess(ctx, key);
+
+    // A presign is issued before the client performs its PUT. Bumping only at
+    // presign time leaves a race where subscribers list the scope before the
+    // object exists and never receive another signal. Confirm the object is
+    // present, then bump again after the successful upload.
+    await this.s3Client.send(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+    );
+    await this.bumpManifest(ctx, key);
+  }
+
   async presignDownload(
     dto: PresignDownloadRequestDto,
     ctx: UserContext,
@@ -666,7 +687,15 @@ export class SyncService implements OnModuleInit {
     ctx: UserContext,
     pollIntervalMs = 5000,
   ): Observable<SubscribeEventDto> {
-    const basePrefixes = ["profiles/", "proxies/", "groups/", "tombstones/"];
+    const basePrefixes = [
+      "profiles/",
+      "proxies/",
+      "groups/",
+      "vpns/",
+      "extensions/",
+      "extension_groups/",
+      "tombstones/",
+    ];
     const scopes = this.scopesFor(ctx);
 
     // Per-connection state (not shared across subscribers).

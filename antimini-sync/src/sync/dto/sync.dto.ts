@@ -27,6 +27,10 @@ export class PresignUploadResponseDto {
   metadata?: Record<string, string>;
 }
 
+export class CompleteUploadRequestDto {
+  key: string;
+}
+
 export class PresignDownloadRequestDto {
   key: string;
   expiresIn?: number;

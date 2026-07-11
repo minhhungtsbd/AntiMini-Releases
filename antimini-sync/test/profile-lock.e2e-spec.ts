@@ -51,6 +51,13 @@ describe("Profile locks (e2e)", () => {
       .expect(204);
 
     await request(app.getHttpServer())
+      .post(`/v1/profile-locks/${profileId}/heartbeat`)
+      .set(auth)
+      .send({ deviceId: firstDevice })
+      .expect(200)
+      .expect((response) => expect(response.body.success).toBe(false));
+
+    await request(app.getHttpServer())
       .post(`/v1/profile-locks/${profileId}`)
       .set(auth)
       .send({ deviceId: secondDevice })

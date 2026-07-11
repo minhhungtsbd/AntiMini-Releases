@@ -14,6 +14,7 @@ import { map, type Observable } from "rxjs";
 import { AuthGuard } from "../auth/auth.guard.js";
 import type { UserContext } from "../auth/user-context.interface.js";
 import type {
+  CompleteUploadRequestDto,
   DeletePrefixRequestDto,
   DeletePrefixResponseDto,
   DeleteRequestDto,
@@ -58,6 +59,16 @@ export class SyncController {
     @Req() req: Request,
   ): Promise<PresignUploadResponseDto> {
     return this.syncService.presignUpload(dto, this.getUserContext(req));
+  }
+
+  @Post("complete-upload")
+  @HttpCode(200)
+  async completeUpload(
+    @Body() dto: CompleteUploadRequestDto,
+    @Req() req: Request,
+  ): Promise<{ completed: boolean }> {
+    await this.syncService.completeUpload(dto, this.getUserContext(req));
+    return { completed: true };
   }
 
   @Post("presign-download")
