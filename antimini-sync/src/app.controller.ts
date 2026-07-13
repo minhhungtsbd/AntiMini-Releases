@@ -12,6 +12,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Request } from "express";
 import * as jwt from "jsonwebtoken";
 import { AppService } from "./app.service.js";
+import { DeviceRegistryService } from "./device-registry.service.js";
 import { SyncService } from "./sync/sync.service.js";
 
 @Controller()
@@ -20,7 +21,16 @@ export class AppController {
     private readonly appService: AppService,
     private readonly syncService: SyncService,
     private readonly configService: ConfigService,
+    private readonly devices: DeviceRegistryService,
   ) {}
+
+  private deviceId(req: Request): string | undefined {
+    const value = req.headers["x-device-id"];
+    const deviceId = Array.isArray(value) ? value[0] : value;
+    return deviceId && /^[a-zA-Z0-9-]{16,128}$/.test(deviceId)
+      ? deviceId
+      : undefined;
+  }
 
   @Get()
   getHello(): string {
@@ -106,6 +116,10 @@ export class AppController {
     );
     if (!privateKeyEnv) {
       // Self-hosted/static mode: return the static mock user data
+      const deviceId = this.deviceId(req);
+      const registration = deviceId
+        ? await this.devices.register("test@cloudmini.net", deviceId)
+        : { deviceOrdinal: 1, deviceCount: 1 };
       return {
         id: "mock-user-id",
         email: "test@cloudmini.net",
@@ -117,6 +131,8 @@ export class AppController {
         proxyBandwidthLimitMb: 1000000,
         proxyBandwidthUsedMb: 0,
         proxyBandwidthExtraMb: 0,
+        ...registration,
+        isPrimaryDevice: true,
       };
     }
 
@@ -162,7 +178,8 @@ export class AppController {
 
       let profileLimit = 5; // Default trial limit if not active/purchased
       let planName = "Free Trial";
-      let status = "active";
+      let status = "inactive";
+      let planPeriod: string | null = null;
 
       if (antidetectRes.ok) {
         const antidetectBody = (await antidetectRes.json()) as any;
@@ -171,19 +188,26 @@ export class AppController {
           if (antidetectData.is_expired) {
             status = "expired";
             planName = `Cloud Sync (Expired: ${antidetectData.expired_at})`;
+            planPeriod = "monthly";
           } else {
             profileLimit = antidetectData.amount || 5;
             planName = `Cloud Sync (Expires: ${antidetectData.expired_at})`;
+            planPeriod = "monthly";
           }
         }
       }
+
+      const deviceId = this.deviceId(req);
+      const registration = deviceId
+        ? await this.devices.register(accountData.email, deviceId)
+        : { deviceOrdinal: 1, deviceCount: 1 };
 
       return {
         id: accountData.email,
         email: accountData.email,
         plan: planName,
         subscriptionStatus: status,
-        planPeriod: "monthly",
+        planPeriod,
         profileLimit: profileLimit,
         cloudProfilesUsed: 0,
         proxyBandwidthLimitMb: 1000000,
@@ -192,8 +216,9 @@ export class AppController {
         teamId: null,
         teamName: accountData.name,
         teamRole: null,
-        deviceOrdinal: 1,
-        deviceCount: 1,
+        ...registration,
+        // Personal Cloudmini accounts use per-profile leases, so every signed-in
+        // device can run a different profile at the same time.
         isPrimaryDevice: true,
       };
     } catch (e) {
@@ -321,7 +346,9 @@ export class AppController {
   }
 
   @Post("api/auth/logout")
-  logout(): any {
+  async logout(@Req() req: Request): Promise<any> {
+    const deviceId = this.deviceId(req);
+    if (deviceId) await this.devices.unregister(deviceId);
     return { success: true };
   }
 

@@ -1,9 +1,11 @@
 import { INestApplication } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
 import { App } from "supertest/types";
 import { AppController } from "./../src/app.controller.js";
 import { AppService } from "./../src/app.service.js";
+import { DeviceRegistryService } from "./../src/device-registry.service.js";
 import { SyncService } from "./../src/sync/sync.service.js";
 
 describe("AppController (e2e)", () => {
@@ -14,6 +16,17 @@ describe("AppController (e2e)", () => {
       controllers: [AppController],
       providers: [
         AppService,
+        {
+          provide: ConfigService,
+          useValue: { get: () => undefined },
+        },
+        {
+          provide: DeviceRegistryService,
+          useValue: {
+            register: async () => ({ deviceOrdinal: 1, deviceCount: 1 }),
+            unregister: async () => undefined,
+          },
+        },
         {
           provide: SyncService,
           useValue: {

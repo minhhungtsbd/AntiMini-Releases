@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller.js";
 import { AppService } from "./app.service.js";
+import { DeviceRegistryService } from "./device-registry.service.js";
 import { ProfileLockModule } from "./profile-lock/profile-lock.module.js";
 import { SyncModule } from "./sync/sync.module.js";
 
@@ -14,6 +15,6 @@ import { SyncModule } from "./sync/sync.module.js";
     SyncModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DeviceRegistryService],
 })
 export class AppModule {}
