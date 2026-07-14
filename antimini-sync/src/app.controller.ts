@@ -190,6 +190,7 @@ export class AppController {
             planName = `Cloud Sync (Expired: ${antidetectData.expired_at})`;
             planPeriod = "monthly";
           } else {
+            status = "active";
             profileLimit = antidetectData.amount || 5;
             planName = `Cloud Sync (Expires: ${antidetectData.expired_at})`;
             planPeriod = "monthly";
