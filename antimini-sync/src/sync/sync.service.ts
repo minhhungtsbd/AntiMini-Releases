@@ -982,15 +982,17 @@ export class SyncService implements OnModuleInit {
     return match ? match[1] : null;
   }
 
-  private async keyExistsOnS3(key: string): Promise<boolean> {
+  private async profileDirExistsOnS3(prefix: string, profileId: string): Promise<boolean> {
+    const dirPrefix = `${prefix}profiles/${profileId}/`;
     try {
-      await this.s3Client.send(
-        new HeadObjectCommand({
+      const result = await this.s3Client.send(
+        new ListObjectsV2Command({
           Bucket: this.bucket,
-          Key: key,
+          Prefix: dirPrefix,
+          MaxKeys: 1,
         }),
       );
-      return true;
+      return (result.Contents && result.Contents.length > 0) || false;
     } catch {
       return false;
     }
@@ -1008,8 +1010,7 @@ export class SyncService implements OnModuleInit {
     if (ctx.teamPrefix && ctx.teamProfileLimit && ctx.teamProfileLimit > 0) {
       let bypassTeam = false;
       if (targetProfileId) {
-        const teamManifestKey = `${ctx.teamPrefix}profiles/${targetProfileId}/manifest.json`;
-        bypassTeam = await this.keyExistsOnS3(teamManifestKey);
+        bypassTeam = await this.profileDirExistsOnS3(ctx.teamPrefix, targetProfileId);
       }
 
       if (!bypassTeam) {
@@ -1034,8 +1035,7 @@ export class SyncService implements OnModuleInit {
 
     let bypassPersonal = false;
     if (targetProfileId) {
-      const personalManifestKey = `${ctx.prefix}profiles/${targetProfileId}/manifest.json`;
-      bypassPersonal = await this.keyExistsOnS3(personalManifestKey);
+      bypassPersonal = await this.profileDirExistsOnS3(ctx.prefix, targetProfileId);
     }
 
     if (bypassPersonal) {
