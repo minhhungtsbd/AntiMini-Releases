@@ -3,7 +3,7 @@ import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createClient, type RedisClientType } from "redis";
 
-const ACTIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const ACTIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 const DEVICE_KEY_TTL_SECONDS = Math.ceil(ACTIVE_WINDOW_MS / 1000);
 const DEVICE_KEY_PREFIX = "antimini:devices:";
 const DEVICE_ORDER_PREFIX = "antimini:device-order:";

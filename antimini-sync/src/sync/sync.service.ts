@@ -320,7 +320,8 @@ export class SyncService implements OnModuleInit {
 
     // Check profile limit for cloud users
     if (ctx.mode === "cloud" && ctx.profileLimit > 0) {
-      await this.checkProfileLimit(ctx);
+      const targetProfileId = this.extractProfileIdFromKey(dto.key);
+      await this.checkProfileLimit(ctx, targetProfileId);
     }
 
     const expiresIn = clampExpiresIn(dto.expiresIn);
@@ -509,7 +510,15 @@ export class SyncService implements OnModuleInit {
   ): Promise<PresignUploadBatchResponseDto> {
     // Check profile limit for cloud users
     if (ctx.mode === "cloud" && ctx.profileLimit > 0) {
-      await this.checkProfileLimit(ctx);
+      let targetProfileId: string | null = null;
+      for (const item of dto.items) {
+        const id = this.extractProfileIdFromKey(item.key);
+        if (id) {
+          targetProfileId = id;
+          break;
+        }
+      }
+      await this.checkProfileLimit(ctx, targetProfileId);
     }
 
     const expiresIn = clampExpiresIn(dto.expiresIn);
@@ -968,15 +977,72 @@ export class SyncService implements OnModuleInit {
     return { deletedProfiles, remaining };
   }
 
+  private extractProfileIdFromKey(key: string): string | null {
+    const match = key.match(/profiles\/([^/]+)/);
+    return match ? match[1] : null;
+  }
+
+  private async keyExistsOnS3(key: string): Promise<boolean> {
+    try {
+      await this.s3Client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Check if the user has reached their profile limit.
    * Counts objects in the profiles/ prefix.
    */
-  private async checkProfileLimit(ctx: UserContext): Promise<void> {
+  private async checkProfileLimit(
+    ctx: UserContext,
+    targetProfileId: string | null,
+  ): Promise<void> {
+    // 1. Check team profile limit if applicable
+    if (ctx.teamPrefix && ctx.teamProfileLimit && ctx.teamProfileLimit > 0) {
+      let bypassTeam = false;
+      if (targetProfileId) {
+        const teamManifestKey = `${ctx.teamPrefix}profiles/${targetProfileId}/manifest.json`;
+        bypassTeam = await this.keyExistsOnS3(teamManifestKey);
+      }
+
+      if (!bypassTeam) {
+        const teamResult = await this.s3Client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            Prefix: `${ctx.teamPrefix}profiles/`,
+            Delimiter: "/",
+          }),
+        );
+        const teamCount = teamResult.CommonPrefixes?.length || 0;
+        if (teamCount >= ctx.teamProfileLimit) {
+          throw new ForbiddenException(
+            `Team profile limit reached (${ctx.teamProfileLimit}). Ask the team owner to upgrade.`,
+          );
+        }
+      }
+    }
+
+    // 2. Check personal profile limit
     if (ctx.profileLimit <= 0) return; // 0 = unlimited
 
-    let count = 0;
+    let bypassPersonal = false;
+    if (targetProfileId) {
+      const personalManifestKey = `${ctx.prefix}profiles/${targetProfileId}/manifest.json`;
+      bypassPersonal = await this.keyExistsOnS3(personalManifestKey);
+    }
 
+    if (bypassPersonal) {
+      return; // Bypass check
+    }
+
+    let count = 0;
     const userResult = await this.s3Client.send(
       new ListObjectsV2Command({
         Bucket: this.bucket,
@@ -985,22 +1051,6 @@ export class SyncService implements OnModuleInit {
       }),
     );
     count += userResult.CommonPrefixes?.length || 0;
-
-    if (ctx.teamPrefix && ctx.teamProfileLimit && ctx.teamProfileLimit > 0) {
-      const teamResult = await this.s3Client.send(
-        new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: `${ctx.teamPrefix}profiles/`,
-          Delimiter: "/",
-        }),
-      );
-      const teamCount = teamResult.CommonPrefixes?.length || 0;
-      if (teamCount >= ctx.teamProfileLimit) {
-        throw new ForbiddenException(
-          `Team profile limit reached (${ctx.teamProfileLimit}). Ask the team owner to upgrade.`,
-        );
-      }
-    }
 
     if (count >= ctx.profileLimit) {
       throw new ForbiddenException(

@@ -67,7 +67,12 @@ describe("AppController", () => {
           ok: true,
           json: async () => ({
             error: false,
-            data: { email: "active@example.com", name: "Active user" },
+            data: {
+              email: "active@example.com",
+              name: "Active user",
+              vip_level: 0,
+              service_count: 10,
+            },
           }),
         } as Response)
         .mockResolvedValueOnce({
@@ -91,6 +96,9 @@ describe("AppController", () => {
 
       expect(user.subscriptionStatus).toBe("active");
       expect(user.profileLimit).toBe(10);
+      expect(user.plan).toBe("cloudmini");
+      expect(user.vipLevel).toBe(0);
+      expect(user.serviceCount).toBe(10);
     });
   });
 });

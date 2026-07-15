@@ -177,7 +177,6 @@ export class AppController {
       });
 
       let profileLimit = 5; // Default trial limit if not active/purchased
-      let planName = "Free Trial";
       let status = "inactive";
       let planPeriod: string | null = null;
 
@@ -187,12 +186,10 @@ export class AppController {
           const antidetectData = antidetectBody.data;
           if (antidetectData.is_expired) {
             status = "expired";
-            planName = `Cloud Sync (Expired: ${antidetectData.expired_at})`;
             planPeriod = "monthly";
           } else {
             status = "active";
             profileLimit = antidetectData.amount || 5;
-            planName = `Cloud Sync (Expires: ${antidetectData.expired_at})`;
             planPeriod = "monthly";
           }
         }
@@ -206,7 +203,16 @@ export class AppController {
       return {
         id: accountData.email,
         email: accountData.email,
-        plan: planName,
+        // `plan` is an internal entitlement tier. The desktop renders the
+        // CloudMini account tier from vipLevel/serviceCount so the Profile Plan
+        // section never mistakes a Cloud Sync package for the account plan.
+        plan: "cloudmini",
+        vipLevel:
+          typeof accountData.vip_level === "number" ? accountData.vip_level : 0,
+        serviceCount:
+          typeof accountData.service_count === "number"
+            ? accountData.service_count
+            : 0,
         subscriptionStatus: status,
         planPeriod,
         profileLimit: profileLimit,
