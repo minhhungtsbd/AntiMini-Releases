@@ -318,10 +318,12 @@ export class SyncService implements OnModuleInit {
     const key = this.scopeKey(ctx, dto.key);
     this.validateKeyAccess(ctx, key);
 
-    // Check profile limit for cloud users
-    if (ctx.mode === "cloud" && ctx.profileLimit > 0) {
+    // Check profile limit for cloud users (only for non-tombstone profile files)
+    if (ctx.mode === "cloud" && ctx.profileLimit > 0 && !dto.key.includes("tombstones/")) {
       const targetProfileId = this.extractProfileIdFromKey(dto.key);
-      await this.checkProfileLimit(ctx, targetProfileId);
+      if (targetProfileId) {
+        await this.checkProfileLimit(ctx, targetProfileId);
+      }
     }
 
     const expiresIn = clampExpiresIn(dto.expiresIn);
@@ -508,17 +510,23 @@ export class SyncService implements OnModuleInit {
     dto: PresignUploadBatchRequestDto,
     ctx: UserContext,
   ): Promise<PresignUploadBatchResponseDto> {
-    // Check profile limit for cloud users
+    // Check profile limit for cloud users (only for non-tombstone profile files)
     if (ctx.mode === "cloud" && ctx.profileLimit > 0) {
       let targetProfileId: string | null = null;
+      let hasNonTombstoneProfileKey = false;
       for (const item of dto.items) {
-        const id = this.extractProfileIdFromKey(item.key);
-        if (id) {
-          targetProfileId = id;
-          break;
+        if (!item.key.includes("tombstones/")) {
+          const id = this.extractProfileIdFromKey(item.key);
+          if (id) {
+            targetProfileId = id;
+            hasNonTombstoneProfileKey = true;
+            break;
+          }
         }
       }
-      await this.checkProfileLimit(ctx, targetProfileId);
+      if (hasNonTombstoneProfileKey && targetProfileId) {
+        await this.checkProfileLimit(ctx, targetProfileId);
+      }
     }
 
     const expiresIn = clampExpiresIn(dto.expiresIn);
@@ -982,7 +990,10 @@ export class SyncService implements OnModuleInit {
     return match ? match[1] : null;
   }
 
-  private async profileDirExistsOnS3(prefix: string, profileId: string): Promise<boolean> {
+  private async profileDirExistsOnS3(
+    prefix: string,
+    profileId: string,
+  ): Promise<boolean> {
     const dirPrefix = `${prefix}profiles/${profileId}/`;
     try {
       const result = await this.s3Client.send(
@@ -1010,7 +1021,10 @@ export class SyncService implements OnModuleInit {
     if (ctx.teamPrefix && ctx.teamProfileLimit && ctx.teamProfileLimit > 0) {
       let bypassTeam = false;
       if (targetProfileId) {
-        bypassTeam = await this.profileDirExistsOnS3(ctx.teamPrefix, targetProfileId);
+        bypassTeam = await this.profileDirExistsOnS3(
+          ctx.teamPrefix,
+          targetProfileId,
+        );
       }
 
       if (!bypassTeam) {
@@ -1035,7 +1049,10 @@ export class SyncService implements OnModuleInit {
 
     let bypassPersonal = false;
     if (targetProfileId) {
-      bypassPersonal = await this.profileDirExistsOnS3(ctx.prefix, targetProfileId);
+      bypassPersonal = await this.profileDirExistsOnS3(
+        ctx.prefix,
+        targetProfileId,
+      );
     }
 
     if (bypassPersonal) {
